@@ -7,7 +7,6 @@ import { TasksPage } from '@/pages/TasksPage';
 import { CompletedPage } from '@/pages/CompletedPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { MorphingCreateTask } from '@/components/tasks/MorphingCreateTask';
-import { WelcomeScreen } from '@/components/ui/apple-hello-effect/welcome-screen';
 import { clearTasks } from '@/lib/storage';
 import { clearActivities } from '@/lib/activity';
 import {
@@ -30,12 +29,6 @@ export default function App() {
   const [page, setPage] = useState<Page>('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
   const [theme, setTheme] = useState<Theme>(getInitialTheme);
-  const [showWelcome, setShowWelcome] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      return !sessionStorage.getItem('hasSeenWelcome');
-    }
-    return true;
-  });
 
   const queryClient = useQueryClient();
 
@@ -97,16 +90,6 @@ export default function App() {
 
   return (
     <>
-      <AnimatePresence mode="wait">
-        {showWelcome && (
-          <WelcomeScreen
-            onComplete={() => {
-              setShowWelcome(false);
-              sessionStorage.setItem('hasSeenWelcome', 'true');
-            }}
-          />
-        )}
-      </AnimatePresence>
       <AppShell
         page={page}
         onNavigate={(p: Page) => { setPage(p); setSearchQuery(''); }}
