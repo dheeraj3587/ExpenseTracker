@@ -16,10 +16,11 @@ const mapRow = (row: any): Task => ({
 });
 
 export const taskService = {
-  async getTasks(): Promise<Task[]> {
+  async getTasks(userId: string): Promise<Task[]> {
     const { data, error } = await supabase
       .from('tasks')
       .select('*')
+      .eq('user_id', userId)
       .order('order_index', { ascending: true });
 
     if (error) {
@@ -29,11 +30,12 @@ export const taskService = {
     return (data || []).map(mapRow);
   },
 
-  async createTask(input: CreateTaskInput): Promise<Task> {
-    // Get next order index
+  async createTask(userId: string, input: CreateTaskInput): Promise<Task> {
+    // Get next order index for this user
     const { data: maxData, error: maxError } = await supabase
       .from('tasks')
       .select('order_index')
+      .eq('user_id', userId)
       .order('order_index', { ascending: false })
       .limit(1);
 
@@ -46,6 +48,7 @@ export const taskService = {
     const { data, error } = await supabase
       .from('tasks')
       .insert({
+        user_id: userId,
         title: input.title.trim(),
         description: input.description?.trim() ?? '',
         due_date: input.dueDate ?? '',
@@ -64,7 +67,7 @@ export const taskService = {
     return mapRow(data);
   },
 
-  async updateTask(id: string, input: UpdateTaskInput): Promise<Task> {
+  async updateTask(userId: string, id: string, input: UpdateTaskInput): Promise<Task> {
     const updateData: any = {};
     if (input.title !== undefined) updateData.title = input.title.trim();
     if (input.description !== undefined) updateData.description = input.description.trim();
@@ -78,6 +81,7 @@ export const taskService = {
       .from('tasks')
       .update(updateData)
       .eq('id', id)
+      .eq('user_id', userId)
       .select()
       .single();
 
@@ -91,11 +95,12 @@ export const taskService = {
     return mapRow(data);
   },
 
-  async toggleTask(id: string): Promise<Task> {
+  async toggleTask(userId: string, id: string): Promise<Task> {
     const { data: current, error: fetchError } = await supabase
       .from('tasks')
       .select('completed')
       .eq('id', id)
+      .eq('user_id', userId)
       .single();
 
     if (fetchError || !current) {
@@ -106,6 +111,7 @@ export const taskService = {
       .from('tasks')
       .update({ completed: !current.completed })
       .eq('id', id)
+      .eq('user_id', userId)
       .select()
       .single();
 
@@ -116,23 +122,25 @@ export const taskService = {
     return mapRow(data);
   },
 
-  async deleteTask(id: string): Promise<void> {
+  async deleteTask(userId: string, id: string): Promise<void> {
     const { error } = await supabase
       .from('tasks')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('user_id', userId);
 
     if (error) {
       throw new HttpError(500, `Database error: ${error.message}`);
     }
   },
 
-  async reorderTasks(orderedIds: string[]): Promise<Task[]> {
+  async reorderTasks(userId: string, orderedIds: string[]): Promise<Task[]> {
     const updates = orderedIds.map((id, index) =>
       supabase
         .from('tasks')
         .update({ order_index: index })
         .eq('id', id)
+        .eq('user_id', userId)
     );
 
     const results = await Promise.all(updates);
@@ -141,6 +149,6 @@ export const taskService = {
       throw new HttpError(500, `Database error during reordering: ${failed.error?.message}`);
     }
 
-    return this.getTasks();
+    return this.getTasks(userId);
   },
 };

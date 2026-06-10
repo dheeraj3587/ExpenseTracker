@@ -2,6 +2,24 @@ import type { Task, TaskFormValues } from '@/types/task';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
+const getUserId = (): string => {
+  let userId = localStorage.getItem('anonymous_user_id');
+  if (!userId) {
+    userId = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : Math.random().toString(36).substring(2) + Date.now().toString(36);
+    localStorage.setItem('anonymous_user_id', userId);
+  }
+  return userId;
+};
+
+const getHeaders = (extraHeaders?: Record<string, string>) => {
+  return {
+    'X-User-Id': getUserId(),
+    ...extraHeaders,
+  };
+};
+
 const mapTask = (serverTask: any): Task => ({
   id: serverTask.id,
   title: serverTask.title,
@@ -19,7 +37,9 @@ const mapTask = (serverTask: any): Task => ({
 
 export const api = {
   async getTasks(): Promise<Task[]> {
-    const response = await fetch(`${API_BASE}/tasks`);
+    const response = await fetch(`${API_BASE}/tasks`, {
+      headers: getHeaders(),
+    });
     if (!response.ok) {
       throw new Error('Failed to fetch tasks');
     }
@@ -30,9 +50,9 @@ export const api = {
   async createTask(values: TaskFormValues): Promise<Task> {
     const response = await fetch(`${API_BASE}/tasks`, {
       method: 'POST',
-      headers: {
+      headers: getHeaders({
         'Content-Type': 'application/json',
-      },
+      }),
       body: JSON.stringify({
         title: values.title.trim(),
         description: values.description.trim(),
@@ -52,9 +72,9 @@ export const api = {
   async updateTask(id: string, values: TaskFormValues): Promise<Task> {
     const response = await fetch(`${API_BASE}/tasks/${id}`, {
       method: 'PUT',
-      headers: {
+      headers: getHeaders({
         'Content-Type': 'application/json',
-      },
+      }),
       body: JSON.stringify({
         title: values.title.trim(),
         description: values.description.trim(),
@@ -74,6 +94,7 @@ export const api = {
   async toggleTask(id: string): Promise<Task> {
     const response = await fetch(`${API_BASE}/tasks/${id}/toggle`, {
       method: 'PATCH',
+      headers: getHeaders(),
     });
     if (!response.ok) {
       throw new Error('Failed to toggle task');
@@ -85,6 +106,7 @@ export const api = {
   async deleteTask(id: string): Promise<void> {
     const response = await fetch(`${API_BASE}/tasks/${id}`, {
       method: 'DELETE',
+      headers: getHeaders(),
     });
     if (!response.ok) {
       throw new Error('Failed to delete task');
@@ -94,9 +116,9 @@ export const api = {
   async reorderTasks(orderedIds: string[]): Promise<Task[]> {
     const response = await fetch(`${API_BASE}/tasks/reorder`, {
       method: 'PATCH',
-      headers: {
+      headers: getHeaders({
         'Content-Type': 'application/json',
-      },
+      }),
       body: JSON.stringify({ orderedIds }),
     });
     if (!response.ok) {
