@@ -7,7 +7,9 @@ import { taskRouter } from './routes/task.routes.js';
 
 config();
 
-const allowedOrigin = process.env.CLIENT_ORIGIN ?? 'http://localhost:5173';
+const allowedOrigin = process.env.CLIENT_ORIGIN
+  ? process.env.CLIENT_ORIGIN.split(',').map(o => o.trim())
+  : true;
 
 export const app = express();
 
