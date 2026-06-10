@@ -1,158 +1,146 @@
-import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
 import { HttpError } from '../middleware/errorHandler.js';
+import { supabase } from './supabase.js';
 import type { CreateTaskInput, Task, UpdateTaskInput } from '../types/task.js';
 
-const DATA_FILE = join(process.cwd(), 'data', 'tasks.json');
-const TEMP_FILE = `${DATA_FILE}.tmp`;
-
-const sortByOrder = (tasks: Task[]): Task[] =>
-  [...tasks].sort((first, second) => first.order - second.order || Date.parse(first.createdAt) - Date.parse(second.createdAt));
-
-const reindexTasks = (tasks: Task[]): Task[] => sortByOrder(tasks).map((task, index) => ({ ...task, order: index }));
-
-const ensureDataFile = async (): Promise<void> => {
-  await mkdir(dirname(DATA_FILE), { recursive: true });
-
-  try {
-    await readFile(DATA_FILE, 'utf8');
-  } catch (error) {
-    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
-      await writeFile(DATA_FILE, '[]', 'utf8');
-      return;
-    }
-
-    throw error;
-  }
-};
-
-const readTasks = async (): Promise<Task[]> => {
-  await ensureDataFile();
-  const contents = await readFile(DATA_FILE, 'utf8');
-
-  if (!contents.trim()) {
-    return [];
-  }
-
-  const parsed = JSON.parse(contents) as Task[];
-  const migrated = parsed.map((task) => ({
-    ...task,
-    priority: task.priority ?? 'medium',
-    category: task.category ?? 'General',
-  }));
-  return sortByOrder(migrated);
-};
-
-const writeTasks = async (tasks: Task[]): Promise<void> => {
-  const orderedTasks = reindexTasks(tasks);
-  await mkdir(dirname(DATA_FILE), { recursive: true });
-  await writeFile(TEMP_FILE, `${JSON.stringify(orderedTasks, null, 2)}\n`, 'utf8');
-  await rename(TEMP_FILE, DATA_FILE);
-};
+// Helper to map DB row to server Task interface
+const mapRow = (row: any): Task => ({
+  id: row.id,
+  title: row.title,
+  description: row.description ?? '',
+  dueDate: row.due_date ?? '',
+  completed: !!row.completed,
+  priority: row.priority ?? 'medium',
+  category: row.category ?? 'General',
+  createdAt: row.created_at ?? new Date().toISOString(),
+  order: row.order_index ?? 0,
+});
 
 export const taskService = {
   async getTasks(): Promise<Task[]> {
-    return readTasks();
+    const { data, error } = await supabase
+      .from('tasks')
+      .select('*')
+      .order('order_index', { ascending: true });
+
+    if (error) {
+      throw new HttpError(500, `Database error: ${error.message}`);
+    }
+
+    return (data || []).map(mapRow);
   },
 
   async createTask(input: CreateTaskInput): Promise<Task> {
-    const tasks = await readTasks();
-    const nextOrder = tasks.length === 0 ? 0 : Math.max(...tasks.map((task) => task.order)) + 1;
+    // Get next order index
+    const { data: maxData, error: maxError } = await supabase
+      .from('tasks')
+      .select('order_index')
+      .order('order_index', { ascending: false })
+      .limit(1);
 
-    const task: Task = {
-      id: randomUUID(),
-      title: input.title.trim(),
-      description: input.description?.trim() ?? '',
-      dueDate: input.dueDate ?? '',
-      completed: false,
-      priority: input.priority ?? 'medium',
-      category: input.category?.trim() || 'General',
-      createdAt: new Date().toISOString(),
-      order: nextOrder,
-    };
+    if (maxError) {
+      throw new HttpError(500, `Database error: ${maxError.message}`);
+    }
 
-    await writeTasks([...tasks, task]);
-    return task;
+    const nextOrder = maxData && maxData.length > 0 && maxData[0] ? (maxData[0].order_index ?? 0) + 1 : 0;
+
+    const { data, error } = await supabase
+      .from('tasks')
+      .insert({
+        title: input.title.trim(),
+        description: input.description?.trim() ?? '',
+        due_date: input.dueDate ?? '',
+        completed: false,
+        priority: input.priority ?? 'medium',
+        category: input.category?.trim() || 'General',
+        order_index: nextOrder,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      throw new HttpError(500, `Database error: ${error.message}`);
+    }
+
+    return mapRow(data);
   },
 
   async updateTask(id: string, input: UpdateTaskInput): Promise<Task> {
-    const tasks = await readTasks();
-    const taskIndex = tasks.findIndex((task) => task.id === id);
+    const updateData: any = {};
+    if (input.title !== undefined) updateData.title = input.title.trim();
+    if (input.description !== undefined) updateData.description = input.description.trim();
+    if (input.dueDate !== undefined) updateData.due_date = input.dueDate;
+    if (input.completed !== undefined) updateData.completed = input.completed;
+    if (input.priority !== undefined) updateData.priority = input.priority;
+    if (input.category !== undefined) updateData.category = input.category.trim();
+    if (input.order !== undefined) updateData.order_index = input.order;
 
-    if (taskIndex === -1) {
-      throw new HttpError(404, 'Task not found.');
+    const { data, error } = await supabase
+      .from('tasks')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        throw new HttpError(404, 'Task not found.');
+      }
+      throw new HttpError(500, `Database error: ${error.message}`);
     }
 
-    const currentTask = tasks[taskIndex];
-
-    if (!currentTask) {
-      throw new HttpError(404, 'Task not found.');
-    }
-
-    const updatedTask: Task = {
-      ...currentTask,
-      ...input,
-      title: input.title?.trim() ?? currentTask.title,
-      description: input.description?.trim() ?? currentTask.description,
-      dueDate: input.dueDate ?? currentTask.dueDate,
-      priority: input.priority ?? currentTask.priority,
-      category: input.category?.trim() ?? currentTask.category,
-    };
-
-    tasks[taskIndex] = updatedTask;
-    await writeTasks(tasks);
-    return updatedTask;
+    return mapRow(data);
   },
 
   async toggleTask(id: string): Promise<Task> {
-    const tasks = await readTasks();
-    const taskIndex = tasks.findIndex((task) => task.id === id);
+    const { data: current, error: fetchError } = await supabase
+      .from('tasks')
+      .select('completed')
+      .eq('id', id)
+      .single();
 
-    if (taskIndex === -1) {
+    if (fetchError || !current) {
       throw new HttpError(404, 'Task not found.');
     }
 
-    const currentTask = tasks[taskIndex];
+    const { data, error } = await supabase
+      .from('tasks')
+      .update({ completed: !current.completed })
+      .eq('id', id)
+      .select()
+      .single();
 
-    if (!currentTask) {
-      throw new HttpError(404, 'Task not found.');
+    if (error) {
+      throw new HttpError(500, `Database error: ${error.message}`);
     }
 
-    const updatedTask = { ...currentTask, completed: !currentTask.completed };
-    tasks[taskIndex] = updatedTask;
-
-    await writeTasks(tasks);
-    return updatedTask;
+    return mapRow(data);
   },
 
   async deleteTask(id: string): Promise<void> {
-    const tasks = await readTasks();
-    const remainingTasks = tasks.filter((task) => task.id !== id);
+    const { error } = await supabase
+      .from('tasks')
+      .delete()
+      .eq('id', id);
 
-    if (remainingTasks.length === tasks.length) {
-      throw new HttpError(404, 'Task not found.');
+    if (error) {
+      throw new HttpError(500, `Database error: ${error.message}`);
     }
-
-    await writeTasks(remainingTasks);
   },
 
   async reorderTasks(orderedIds: string[]): Promise<Task[]> {
-    const tasks = await readTasks();
-    const uniqueIds = new Set(orderedIds);
+    const updates = orderedIds.map((id, index) =>
+      supabase
+        .from('tasks')
+        .update({ order_index: index })
+        .eq('id', id)
+    );
 
-    if (uniqueIds.size !== orderedIds.length) {
-      throw new HttpError(400, 'Task ids must be unique.');
+    const results = await Promise.all(updates);
+    const failed = results.find((r) => r.error);
+    if (failed) {
+      throw new HttpError(500, `Database error during reordering: ${failed.error?.message}`);
     }
 
-    if (orderedIds.length !== tasks.length || orderedIds.some((id) => !tasks.some((task) => task.id === id))) {
-      throw new HttpError(400, 'Reorder payload must include every existing task exactly once.');
-    }
-
-    const taskById = new Map(tasks.map((task) => [task.id, task]));
-    const reorderedTasks = orderedIds.map((id, index) => ({ ...taskById.get(id)!, order: index }));
-
-    await writeTasks(reorderedTasks);
-    return reorderedTasks;
+    return this.getTasks();
   },
 };
