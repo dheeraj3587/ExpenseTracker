@@ -1,4 +1,4 @@
-import { useState, useId, type FC } from 'react';
+import { useEffect, useState, useId, type FC } from 'react';
 import { motion, AnimatePresence, type Transition } from 'framer-motion';
 import {
   AlignLeft,
@@ -21,6 +21,7 @@ interface EditableRowProps {
   multiline?: boolean;
   options?: { value: string; label: string }[];
   initialEditing?: boolean;
+  maxLength?: number;
 }
 
 const spring: Transition = {
@@ -39,6 +40,7 @@ const EditableRow: FC<EditableRowProps> = ({
   multiline = false,
   options,
   initialEditing = false,
+  maxLength,
 }) => {
   const [editing, setEditing] = useState(initialEditing);
   const [tempValue, setTempValue] = useState(value);
@@ -110,6 +112,7 @@ const EditableRow: FC<EditableRowProps> = ({
                 autoFocus
                 readOnly={!editing}
                 rows={3}
+                maxLength={maxLength}
                 value={editing ? tempValue : value}
                 onChange={(e) => handleChange(e.target.value)}
                 placeholder="Add description..."
@@ -124,6 +127,7 @@ const EditableRow: FC<EditableRowProps> = ({
                 autoFocus
                 type="text"
                 readOnly={!editing}
+                maxLength={maxLength}
                 value={editing ? tempValue : value}
                 onChange={(e) => handleChange(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSave()}
@@ -190,6 +194,12 @@ interface CreateTaskModalProps {
 }
 
 export function CreateTaskModal({ onClose, onCreate }: CreateTaskModalProps) {
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
   const [data, setData] = useState<TaskFormValues>({
     title: '',
     description: '',
@@ -209,6 +219,7 @@ export function CreateTaskModal({ onClose, onCreate }: CreateTaskModalProps) {
         exit={{ opacity: 0, y: 10, scale: 0.97 }}
         transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
         role="dialog"
+        aria-modal="true"
       >
         <div className="w-full overflow-hidden rounded-lg border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}>
           <div className="rounded-t-lg border-b px-6 py-4" style={{ background: 'var(--bg-hover)', borderColor: 'var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -225,6 +236,7 @@ export function CreateTaskModal({ onClose, onCreate }: CreateTaskModalProps) {
               icon={Type}
               label="Title"
               value={data.title}
+              maxLength={120}
               onSave={(v) => setData({ ...data, title: v })}
               initialEditing={true}
             />
@@ -256,6 +268,7 @@ export function CreateTaskModal({ onClose, onCreate }: CreateTaskModalProps) {
               icon={Tag}
               label="Category"
               value={data.category}
+              maxLength={50}
               onSave={(v) => setData({ ...data, category: v })}
             />
             <div className="mt-2 border-t pt-4" style={{ borderColor: 'var(--border)' }}>
@@ -264,6 +277,7 @@ export function CreateTaskModal({ onClose, onCreate }: CreateTaskModalProps) {
                 label="Description"
                 multiline
                 value={data.description}
+                maxLength={700}
                 onSave={(v) => setData({ ...data, description: v })}
               />
             </div>

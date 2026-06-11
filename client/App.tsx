@@ -7,6 +7,7 @@ import { TasksPage } from '@/pages/TasksPage';
 import { CompletedPage } from '@/pages/CompletedPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { MorphingCreateTask } from '@/components/tasks/MorphingCreateTask';
+import { api } from '@/services/api';
 import { clearTasks } from '@/lib/storage';
 import { clearActivities } from '@/lib/activity';
 import {
@@ -70,11 +71,14 @@ export default function App() {
   };
 
   const handleClearData = (): void => {
+    const currentTasks = queryClient.getQueryData<Task[]>(TASKS_QUERY_KEY) ?? tasks;
     clearTasks();
     clearActivities();
-    // Delete all tasks from query cache and invalidate
+    // Optimistically empty the cache, then delete every task on the server
     queryClient.setQueryData(TASKS_QUERY_KEY, []);
-    queryClient.invalidateQueries({ queryKey: TASKS_QUERY_KEY });
+    void Promise.allSettled(currentTasks.map((task) => api.deleteTask(task.id))).finally(() => {
+      queryClient.invalidateQueries({ queryKey: TASKS_QUERY_KEY });
+    });
   };
 
   const sharedTaskProps = {

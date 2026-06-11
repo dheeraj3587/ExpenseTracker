@@ -42,7 +42,7 @@ export function SettingsPage({ theme, onThemeToggle, onClearData, taskCount }: S
         <div className="settings-card">
           <h2 style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>Data</h2>
           <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 18, lineHeight: 1.5 }}>
-            All tasks are stored locally in your browser. Clearing will permanently delete all{taskCount > 0 ? ` ${taskCount}` : ''} task{taskCount === 1 ? '' : 's'} and cannot be undone.
+            Tasks are stored in the cloud and linked to this browser profile. Clearing will permanently delete all{taskCount > 0 ? ` ${taskCount}` : ''} task{taskCount === 1 ? '' : 's'} and cannot be undone.
           </p>
 
           {!confirmClear ? (
@@ -73,12 +73,12 @@ export function SettingsPage({ theme, onThemeToggle, onClearData, taskCount }: S
         <div className="settings-card">
           <h2 style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>About</h2>
           <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6 }}>
-            Task Manager OS — a premium full-stack task manager exercise built with React, Express, TypeScript, and localStorage persistence.
+            Task Manager OS — a premium full-stack task manager built with React, Express, TypeScript, and cloud persistence.
           </p>
           <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)', display: 'flex', gap: 24 }}>
             {[
               { label: 'Version', value: '3.0.0' },
-              { label: 'Storage', value: 'Local' },
+              { label: 'Storage', value: 'Cloud' },
               { label: 'Tasks', value: String(taskCount) },
             ].map(({ label, value }) => (
               <div key={label}>

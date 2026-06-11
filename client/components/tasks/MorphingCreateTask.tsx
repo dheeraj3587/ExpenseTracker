@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useId, type FC } from 'react';
+import { useEffect, useState, useId, type FC } from 'react';
 import { motion, AnimatePresence, MotionConfig, type Transition } from 'framer-motion';
 import { AlignLeft, Calendar, Check, Flag, Tag, Type, X, Pencil, Plus } from 'lucide-react';
 import useMeasure from 'react-use-measure';
@@ -15,6 +15,7 @@ interface EditableRowProps {
   multiline?: boolean;
   options?: { value: string; label: string }[];
   initialEditing?: boolean;
+  maxLength?: number;
 }
 
 const spring: Transition = {
@@ -24,7 +25,7 @@ const spring: Transition = {
   mass: 0.6,
 };
 
-const EditableRow: FC<EditableRowProps> = ({ icon: Icon, label, value, onSave, type = 'text', multiline = false, options, initialEditing = false }) => {
+const EditableRow: FC<EditableRowProps> = ({ icon: Icon, label, value, onSave, type = 'text', multiline = false, options, initialEditing = false, maxLength }) => {
   const [editing, setEditing] = useState(initialEditing);
   const [tempValue, setTempValue] = useState(value);
   const inputId = useId();
@@ -82,6 +83,7 @@ const EditableRow: FC<EditableRowProps> = ({ icon: Icon, label, value, onSave, t
                 autoFocus
                 readOnly={!editing}
                 rows={2}
+                maxLength={maxLength}
                 value={editing ? tempValue : value}
                 onChange={(e) => handleChange(e.target.value)}
                 placeholder="Add description..."
@@ -93,6 +95,7 @@ const EditableRow: FC<EditableRowProps> = ({ icon: Icon, label, value, onSave, t
                 autoFocus
                 type="text"
                 readOnly={!editing}
+                maxLength={maxLength}
                 value={editing ? tempValue : value}
                 onChange={(e) => handleChange(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSave()}
@@ -152,6 +155,18 @@ export function MorphingCreateTask({ onCreate }: MorphingCreateTaskProps) {
     setIsOpen(false);
   };
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setData({ title: '', description: '', dueDate: '', priority: 'medium', category: '' });
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [isOpen]);
+
   return (
     <MotionConfig transition={{ type: 'spring', stiffness: 280, damping: 26 }}>
       <div className="fixed-fab-container">
@@ -201,7 +216,7 @@ export function MorphingCreateTask({ onCreate }: MorphingCreateTaskProps) {
                   </div>
 
                   <div className="px-3 py-3 space-y-1">
-                    <EditableRow icon={Type} label="Title" value={data.title} onSave={(v) => setData({ ...data, title: v })} initialEditing={true} />
+                    <EditableRow icon={Type} label="Title" value={data.title} maxLength={120} onSave={(v) => setData({ ...data, title: v })} initialEditing={true} />
                     {!data.title.trim() && (
                       <p style={{ color: 'var(--error-text)', fontSize: 11, paddingLeft: 40, marginTop: -2, marginBottom: 4 }}>
                         * Task name is required
@@ -209,9 +224,9 @@ export function MorphingCreateTask({ onCreate }: MorphingCreateTaskProps) {
                     )}
                     <EditableRow icon={Calendar} label="Due Date" type="date" value={data.dueDate} onSave={(v) => setData({ ...data, dueDate: v })} />
                     <EditableRow icon={Flag} label="Priority" value={data.priority} options={[{ value: 'critical', label: 'Critical' }, { value: 'high', label: 'High' }, { value: 'medium', label: 'Medium' }, { value: 'low', label: 'Low' }]} onSave={(v) => setData({ ...data, priority: v as any })} />
-                    <EditableRow icon={Tag} label="Category" value={data.category} onSave={(v) => setData({ ...data, category: v })} />
+                    <EditableRow icon={Tag} label="Category" value={data.category} maxLength={50} onSave={(v) => setData({ ...data, category: v })} />
                     <div className="mt-1 border-t pt-2" style={{ borderColor: 'var(--border)' }}>
-                      <EditableRow icon={AlignLeft} label="Description" multiline value={data.description} onSave={(v) => setData({ ...data, description: v })} />
+                      <EditableRow icon={AlignLeft} label="Description" multiline value={data.description} maxLength={700} onSave={(v) => setData({ ...data, description: v })} />
                     </div>
                   </div>
 

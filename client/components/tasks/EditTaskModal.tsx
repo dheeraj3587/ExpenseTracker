@@ -58,13 +58,13 @@ export function EditTaskModal({ task, onClose, onUpdate }: EditTaskModalProps) {
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: 14 }}>
             <label htmlFor="e-title" className="field-label">Title <span style={{ color: 'var(--error-text)' }}>*</span></label>
-            <input ref={titleRef} id="e-title" className="input-field" value={title} onChange={(e) => { setTitle(e.target.value); if (titleError) setTitleError(''); }} autoComplete="off" />
+            <input ref={titleRef} id="e-title" className="input-field" value={title} maxLength={120} onChange={(e) => { setTitle(e.target.value); if (titleError) setTitleError(''); }} autoComplete="off" />
             {titleError && <p className="field-error">{titleError}</p>}
           </div>
 
           <div style={{ marginBottom: 14 }}>
             <label htmlFor="e-desc" className="field-label">Description</label>
-            <textarea id="e-desc" className="textarea-field" value={description} onChange={(e) => setDescription(e.target.value)} />
+            <textarea id="e-desc" className="textarea-field" value={description} maxLength={700} onChange={(e) => setDescription(e.target.value)} />
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 22 }}>
@@ -83,7 +83,7 @@ export function EditTaskModal({ task, onClose, onUpdate }: EditTaskModalProps) {
             </div>
             <div>
               <label htmlFor="e-category" className="field-label">Category</label>
-              <input id="e-category" className="input-field" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. Design" autoComplete="off" />
+              <input id="e-category" className="input-field" value={category} maxLength={50} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. Design" autoComplete="off" />
             </div>
           </div>
 
